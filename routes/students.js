@@ -1,6 +1,7 @@
 import express from "express";
 import db from "../db.js";
 import roleAuth from "../middleware/roleAuth.js";
+import calculateMatch from "../utils/matching.js";
 
 const router = express.Router();
 
@@ -192,6 +193,99 @@ router.delete("/me/interests/:fieldId", roleAuth("student"), async (req, res) =>
     );
     res.json({ message: "Removed" });
   } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/students/me/recommendations -> every Active internship, each
+// with a computed match score, best matches first (for the Recommended
+// Internships page). Same calculateMatch helper as
+// internships.js's GET /:id/match - the student's own data is fetched
+// once, then looped over the internships in plain JS instead of running
+// calculateMatch's queries once per internship.
+router.get("/me/recommendations", roleAuth("student"), async (req, res) => {
+  try {
+    const profileResult = await db.query(
+      "SELECT * FROM student_profiles WHERE user_id = $1",
+      [req.userId]
+    );
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+    const profile = profileResult.rows[0];
+
+    const studentSkills = await db.query(
+      `SELECT s.id, s.name
+       FROM student_skills ss
+       JOIN skills s ON s.id = ss.skill_id
+       WHERE ss.student_id = $1`,
+      [req.userId]
+    );
+
+    const interestRows = await db.query(
+      "SELECT field_id FROM student_interests WHERE student_id = $1",
+      [req.userId]
+    );
+    const interestFieldIds = [];
+    for (let i = 0; i < interestRows.rows.length; i++) {
+      interestFieldIds.push(interestRows.rows[i].field_id);
+    }
+
+    const internships = await db.query(
+      `SELECT i.*, c.company_name
+       FROM internships i
+       JOIN company_profiles c ON c.user_id = i.company_id
+       WHERE i.status = 'Active'`
+    );
+
+    const allRequiredSkills = await db.query(
+      `SELECT isk.internship_id, s.id, s.name
+       FROM internship_skills isk
+       JOIN skills s ON s.id = isk.skill_id`
+    );
+
+    // Group the required-skills rows by internship_id in plain JS - one
+    // query instead of one SELECT per internship in the loop below.
+    const skillsByInternship = {};
+    for (let i = 0; i < allRequiredSkills.rows.length; i++) {
+      const row = allRequiredSkills.rows[i];
+      if (!skillsByInternship[row.internship_id]) {
+        skillsByInternship[row.internship_id] = [];
+      }
+      skillsByInternship[row.internship_id].push({ id: row.id, name: row.name });
+    }
+
+    const studentInfo = {
+      skillIds: studentSkills.rows,
+      interestFieldIds,
+      preferred_location_id: profile.preferred_location_id,
+      preferred_internship_type_id: profile.preferred_internship_type_id,
+      study_field_id: profile.study_field_id,
+    };
+
+    const recommendations = [];
+    for (let i = 0; i < internships.rows.length; i++) {
+      const internship = internships.rows[i];
+      const requiredSkills = skillsByInternship[internship.id] || [];
+
+      const match = calculateMatch(studentInfo, {
+        requiredSkills,
+        field_id: internship.field_id,
+        location_id: internship.location_id,
+        internship_type_id: internship.internship_type_id,
+        required_study_field_id: internship.required_study_field_id,
+      });
+
+      internship.match_score = match.score;
+      internship.match_breakdown = match.breakdown;
+      recommendations.push(internship);
+    }
+
+    recommendations.sort((a, b) => b.match_score - a.match_score);
+
+    res.json(recommendations);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
