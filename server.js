@@ -22,6 +22,7 @@ import projectsRoutes from "./routes/projects.js";
 import experienceRoutes from "./routes/experience.js";
 import certificationsRoutes from "./routes/certifications.js";
 import internshipsRoutes from "./routes/internships.js";
+import savedRoutes from "./routes/saved.js";
 
 // import applicationRoutes from "./routes/applications.js";
 // import adminRoutes from "./routes/admin.js";
@@ -58,6 +59,7 @@ app.use("/api/internships", internshipsRoutes);
 // app.use("/api/admin", adminRoutes);
 // app.use("/api/reports", reportRoutes);
 // app.use("/api/quotes", quoteRoutes);
+app.use("/api/saved", savedRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "🚫 Route not found" });
