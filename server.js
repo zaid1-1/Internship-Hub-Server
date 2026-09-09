@@ -13,6 +13,7 @@ import locationsRoutes from "./routes/locations.js";
 import internshipTypesRoutes from "./routes/internshipTypes.js";
 import workArrangementsRoutes from "./routes/workArrangements.js";
 import educationLevelsRoutes from "./routes/educationLevels.js";
+import companiesRoutes from "./routes/companies.js";
 
 // TODO - add these as they're built in the next branches:
 import authRoutes from "./routes/auth.js";
@@ -20,7 +21,6 @@ import studentsRoutes from "./routes/students.js";
 import projectsRoutes from "./routes/projects.js";
 import experienceRoutes from "./routes/experience.js";
 import certificationsRoutes from "./routes/certifications.js";
-// import companyRoutes from "./routes/companies.js";
 // import internshipRoutes from "./routes/internships.js";
 // import savedRoutes from "./routes/saved.js";
 // import applicationRoutes from "./routes/applications.js";
@@ -38,7 +38,7 @@ app.use(morgan("dev"));
 app.get("/", (req, res) => {
   res.send("🚀 Jordan Internship Hub API is running");
 });
-
+app.use("/api/companies", companiesRoutes);
 app.use("/api/skills", skillsRoutes);
 app.use("/api/fields", fieldsRoutes);
 app.use("/api/study-fields", studyFieldsRoutes);
