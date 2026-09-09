@@ -1,6 +1,7 @@
 import express from "express";
 import db from "../db.js";
 import roleAuth from "../middleware/roleAuth.js";
+import calculateMatch from "../utils/matching.js";
 
 const router = express.Router();
 
@@ -353,6 +354,81 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ message: "Internship not found" });
     }
     res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
+// GET /api/internships/:id/match -> rule-based match score + breakdown for
+// the logged-in student against this one internship (used on the
+// internship details page). All the math lives in utils/matching.js -
+// this route just gathers the rows calculateMatch needs. A plain SELECT
+// here on purpose, not the views-incrementing UPDATE from GET /:id.
+router.get("/:id/match", roleAuth("student"), async (req, res) => {
+  try {
+    const internshipResult = await db.query(
+      "SELECT * FROM internships WHERE id = $1",
+      [req.params.id]
+    );
+    if (internshipResult.rows.length === 0) {
+      return res.status(404).json({ message: "Internship not found" });
+    }
+    const internship = internshipResult.rows[0];
+
+    const requiredSkills = await db.query(
+      `SELECT s.id, s.name
+       FROM internship_skills isk
+       JOIN skills s ON s.id = isk.skill_id
+       WHERE isk.internship_id = $1`,
+      [req.params.id]
+    );
+
+    const profileResult = await db.query(
+      "SELECT * FROM student_profiles WHERE user_id = $1",
+      [req.userId]
+    );
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+    const profile = profileResult.rows[0];
+
+    const studentSkills = await db.query(
+      `SELECT s.id, s.name
+       FROM student_skills ss
+       JOIN skills s ON s.id = ss.skill_id
+       WHERE ss.student_id = $1`,
+      [req.userId]
+    );
+
+    const interestRows = await db.query(
+      "SELECT field_id FROM student_interests WHERE student_id = $1",
+      [req.userId]
+    );
+    const interestFieldIds = [];
+    for (let i = 0; i < interestRows.rows.length; i++) {
+      interestFieldIds.push(interestRows.rows[i].field_id);
+    }
+
+    const match = calculateMatch(
+      {
+        skillIds: studentSkills.rows,
+        interestFieldIds,
+        preferred_location_id: profile.preferred_location_id,
+        preferred_internship_type_id: profile.preferred_internship_type_id,
+        study_field_id: profile.study_field_id,
+      },
+      {
+        requiredSkills: requiredSkills.rows,
+        field_id: internship.field_id,
+        location_id: internship.location_id,
+        internship_type_id: internship.internship_type_id,
+        required_study_field_id: internship.required_study_field_id,
+      }
+    );
+
+    res.json(match);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
