@@ -1,0 +1,199 @@
+import express from "express";
+import db from "../db.js";
+import roleAuth from "../middleware/roleAuth.js";
+
+const router = express.Router();
+
+// GET /api/students/me
+// Returns the logged-in student's profile row, plus their selected
+// skills and career interests joined with the lookup tables so the
+// frontend gets readable names, not just ids.
+router.get("/me", roleAuth("student"), async (req, res) => {
+  try {
+    const profile = await db.query(
+      "SELECT * FROM student_profiles WHERE user_id = $1",
+      [req.userId]
+    );
+
+    if (profile.rows.length === 0) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    const skills = await db.query(
+      `SELECT s.id, s.name
+       FROM student_skills ss
+       JOIN skills s ON s.id = ss.skill_id
+       WHERE ss.student_id = $1`,
+      [req.userId]
+    );
+
+    const interests = await db.query(
+      `SELECT f.id, f.name
+       FROM student_interests si
+       JOIN fields f ON f.id = si.field_id
+       WHERE si.student_id = $1`,
+      [req.userId]
+    );
+
+    res.json({
+      profile: profile.rows[0],
+      skills: skills.rows,
+      interests: interests.rows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// PUT /api/students/me
+// Full profile update - the frontend sends every editable field every
+// time (same pattern as the course's UpdateForm / EditProductForm
+// demos), not a partial patch.
+router.put("/me", roleAuth("student"), async (req, res) => {
+  const {
+    first_name,
+    last_name,
+    phone,
+    photo_url,
+    location_id,
+    headline,
+    about,
+    university,
+    degree_level_id,
+    study_field_id,
+    academic_year,
+    expected_graduation_year,
+    gpa,
+    cv_url,
+    github_url,
+    linkedin_url,
+    portfolio_url,
+    personal_website_url,
+    preferred_location_id,
+    preferred_work_arrangement_id,
+    preferred_internship_type_id,
+    preferred_duration,
+  } = req.body;
+
+  try {
+    const result = await db.query(
+      `UPDATE student_profiles SET
+        first_name = $1,
+        last_name = $2,
+        phone = $3,
+        photo_url = $4,
+        location_id = $5,
+        headline = $6,
+        about = $7,
+        university = $8,
+        degree_level_id = $9,
+        study_field_id = $10,
+        academic_year = $11,
+        expected_graduation_year = $12,
+        gpa = $13,
+        cv_url = $14,
+        github_url = $15,
+        linkedin_url = $16,
+        portfolio_url = $17,
+        personal_website_url = $18,
+        preferred_location_id = $19,
+        preferred_work_arrangement_id = $20,
+        preferred_internship_type_id = $21,
+        preferred_duration = $22,
+        updated_at = now()
+       WHERE user_id = $23
+       RETURNING *`,
+      [
+        first_name,
+        last_name,
+        phone,
+        photo_url,
+        location_id,
+        headline,
+        about,
+        university,
+        degree_level_id,
+        study_field_id,
+        academic_year,
+        expected_graduation_year,
+        gpa,
+        cv_url,
+        github_url,
+        linkedin_url,
+        portfolio_url,
+        personal_website_url,
+        preferred_location_id,
+        preferred_work_arrangement_id,
+        preferred_internship_type_id,
+        preferred_duration,
+        req.userId,
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/students/me/skills
+// body: { skill_id }
+router.post("/me/skills", roleAuth("student"), async (req, res) => {
+  const { skill_id } = req.body;
+  try {
+    await db.query(
+      "INSERT INTO student_skills (student_id, skill_id) VALUES ($1, $2)",
+      [req.userId, skill_id]
+    );
+    res.status(201).json({ student_id: req.userId, skill_id });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// DELETE /api/students/me/skills/:skillId
+router.delete("/me/skills/:skillId", roleAuth("student"), async (req, res) => {
+  try {
+    await db.query(
+      "DELETE FROM student_skills WHERE student_id = $1 AND skill_id = $2",
+      [req.userId, req.params.skillId]
+    );
+    res.json({ message: "Removed" });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/students/me/interests
+// body: { field_id }
+router.post("/me/interests", roleAuth("student"), async (req, res) => {
+  const { field_id } = req.body;
+  try {
+    await db.query(
+      "INSERT INTO student_interests (student_id, field_id) VALUES ($1, $2)",
+      [req.userId, field_id]
+    );
+    res.status(201).json({ student_id: req.userId, field_id });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// DELETE /api/students/me/interests/:fieldId
+router.delete("/me/interests/:fieldId", roleAuth("student"), async (req, res) => {
+  try {
+    await db.query(
+      "DELETE FROM student_interests WHERE student_id = $1 AND field_id = $2",
+      [req.userId, req.params.fieldId]
+    );
+    res.json({ message: "Removed" });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+export default router;

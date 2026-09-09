@@ -15,8 +15,11 @@ import workArrangementsRoutes from "./routes/workArrangements.js";
 import educationLevelsRoutes from "./routes/educationLevels.js";
 
 // TODO - add these as they're built in the next branches:
-// import authRoutes from "./routes/auth.js";
-// import studentRoutes from "./routes/students.js";
+import authRoutes from "./routes/auth.js";
+import studentsRoutes from "./routes/students.js";
+import projectsRoutes from "./routes/projects.js";
+import experienceRoutes from "./routes/experience.js";
+import certificationsRoutes from "./routes/certifications.js";
 // import companyRoutes from "./routes/companies.js";
 // import internshipRoutes from "./routes/internships.js";
 // import savedRoutes from "./routes/saved.js";
@@ -44,8 +47,11 @@ app.use("/api/internship-types", internshipTypesRoutes);
 app.use("/api/work-arrangements", workArrangementsRoutes);
 app.use("/api/education-levels", educationLevelsRoutes);
 
-// app.use("/api/auth", authRoutes);
-// app.use("/api/students", studentRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/students", studentsRoutes);
+app.use("/api/projects", projectsRoutes);
+app.use("/api/experience", experienceRoutes);
+app.use("/api/certifications", certificationsRoutes);
 // app.use("/api/companies", companyRoutes);
 // app.use("/api/internships", internshipRoutes);
 // app.use("/api/saved", savedRoutes);

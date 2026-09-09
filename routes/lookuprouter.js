@@ -1,6 +1,6 @@
 import express from "express";
 import db from "../db.js";
-import roleAuth from "../middleware/roleAuth.js";
+import roleAuth from "../middleware/roleauth.js";
 
 // Creates the same 5 CRUD routes for any platform-data lookup table:
 // skills, fields, study_fields, locations, internship_types,
