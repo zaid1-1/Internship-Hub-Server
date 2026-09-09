@@ -2,6 +2,7 @@ import express from "express";
 import db from "../db.js";
 import roleAuth from "../middleware/roleAuth.js";
 import requireAuth from "../middleware/requireAuth.js";
+import calculateMatch from "../utils/matching.js";
 
 const router = express.Router();
 
@@ -57,11 +58,23 @@ router.get("/mine", roleAuth("student"), async (req, res) => {
 // internship owned by the logged-in company. This is the "Candidates"
 // list - not a separate table, just a filtered join of applications
 // scoped to this company's own internships (per the ERD notes).
+// GET /api/applications/candidates -> every application to any
+// internship owned by the logged-in company. This is the "Candidates"
+// list - not a separate table, just a filtered join of applications
+// scoped to this company's own internships (per the ERD notes). Also
+// attaches match_score/match_breakdown/matchingSkills/missingSkills per
+// candidate - same calculateMatch helper as internships.js's
+// GET /:id/match and students.js's GET /me/recommendations, same
+// "fetch everything once, group in plain JS" technique as
+// /me/recommendations instead of a query per candidate.
 router.get("/candidates", roleAuth("company"), async (req, res) => {
   try {
     const result = await db.query(
       `SELECT a.*, s.first_name, s.last_name, s.headline, s.university,
-              i.title AS internship_title
+              s.preferred_location_id, s.preferred_internship_type_id,
+              s.study_field_id,
+              i.title AS internship_title, i.field_id, i.location_id,
+              i.internship_type_id, i.required_study_field_id
        FROM applications a
        JOIN internships i ON i.id = a.internship_id
        JOIN student_profiles s ON s.user_id = a.student_id
@@ -69,7 +82,75 @@ router.get("/candidates", roleAuth("company"), async (req, res) => {
        ORDER BY a.clicked_date DESC`,
       [req.userId]
     );
-    res.json(result.rows);
+
+    const allRequiredSkills = await db.query(
+      `SELECT isk.internship_id, s.id, s.name
+       FROM internship_skills isk
+       JOIN skills s ON s.id = isk.skill_id`
+    );
+    const skillsByInternship = {};
+    for (let i = 0; i < allRequiredSkills.rows.length; i++) {
+      const row = allRequiredSkills.rows[i];
+      if (!skillsByInternship[row.internship_id]) {
+        skillsByInternship[row.internship_id] = [];
+      }
+      skillsByInternship[row.internship_id].push({ id: row.id, name: row.name });
+    }
+
+    const allStudentSkills = await db.query(
+      `SELECT ss.student_id, s.id, s.name
+       FROM student_skills ss
+       JOIN skills s ON s.id = ss.skill_id`
+    );
+    const skillsByStudent = {};
+    for (let i = 0; i < allStudentSkills.rows.length; i++) {
+      const row = allStudentSkills.rows[i];
+      if (!skillsByStudent[row.student_id]) {
+        skillsByStudent[row.student_id] = [];
+      }
+      skillsByStudent[row.student_id].push({ id: row.id, name: row.name });
+    }
+
+    const allInterests = await db.query(
+      "SELECT student_id, field_id FROM student_interests"
+    );
+    const interestsByStudent = {};
+    for (let i = 0; i < allInterests.rows.length; i++) {
+      const row = allInterests.rows[i];
+      if (!interestsByStudent[row.student_id]) {
+        interestsByStudent[row.student_id] = [];
+      }
+      interestsByStudent[row.student_id].push(row.field_id);
+    }
+
+    const candidates = result.rows;
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
+
+      const match = calculateMatch(
+        {
+          skillIds: skillsByStudent[candidate.student_id] || [],
+          interestFieldIds: interestsByStudent[candidate.student_id] || [],
+          preferred_location_id: candidate.preferred_location_id,
+          preferred_internship_type_id: candidate.preferred_internship_type_id,
+          study_field_id: candidate.study_field_id,
+        },
+        {
+          requiredSkills: skillsByInternship[candidate.internship_id] || [],
+          field_id: candidate.field_id,
+          location_id: candidate.location_id,
+          internship_type_id: candidate.internship_type_id,
+          required_study_field_id: candidate.required_study_field_id,
+        }
+      );
+
+      candidate.match_score = match.score;
+      candidate.match_breakdown = match.breakdown;
+      candidate.matchingSkills = match.matchingSkills;
+      candidate.missingSkills = match.missingSkills;
+    }
+
+    res.json(candidates);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
