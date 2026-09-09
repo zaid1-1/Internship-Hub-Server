@@ -24,8 +24,8 @@ import certificationsRoutes from "./routes/certifications.js";
 import internshipsRoutes from "./routes/internships.js";
 import savedRoutes from "./routes/saved.js";
 
-// import applicationRoutes from "./routes/applications.js";
-// import adminRoutes from "./routes/admin.js";
+import applicationsRoutes from "./routes/applications.js";
+
 // import reportRoutes from "./routes/reports.js";
 // import quoteRoutes from "./routes/quotes.js";
 
@@ -55,8 +55,7 @@ app.use("/api/experience", experienceRoutes);
 app.use("/api/certifications", certificationsRoutes);
 // app.use("/api/companies", companyRoutes);
 app.use("/api/internships", internshipsRoutes);
-// app.use("/api/applications", applicationRoutes);
-// app.use("/api/admin", adminRoutes);
+app.use("/api/applications", applicationsRoutes);
 // app.use("/api/reports", reportRoutes);
 // app.use("/api/quotes", quoteRoutes);
 app.use("/api/saved", savedRoutes);
