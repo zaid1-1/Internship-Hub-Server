@@ -18,6 +18,7 @@ router.get("/mine", roleAuth("company"), async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -58,7 +59,7 @@ router.post("/", roleAuth("company"), async (req, res) => {
         additional_info, external_application_url, status, posted_date
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-        $16, $17, $18, CASE WHEN $18 = 'Active' THEN now() ELSE NULL END
+        $16, $17, $18, CASE WHEN $19 = 'Active' THEN now() ELSE NULL END
       ) RETURNING *`,
       [
         req.userId,
@@ -79,10 +80,17 @@ router.post("/", roleAuth("company"), async (req, res) => {
         additional_info,
         external_application_url,
         finalStatus,
+        // finalStatus is passed twice ($18 and $19) on purpose - Postgres
+        // can't reuse the same placeholder as a plain enum column value
+        // AND inside a text comparison (CASE WHEN ... = 'Active') in the
+        // same query, it throws "inconsistent types deduced for
+        // parameter". Passing it twice sidesteps that entirely.
+        finalStatus,
       ]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -159,6 +167,7 @@ router.put("/:id", roleAuth("company"), async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -173,13 +182,16 @@ router.patch("/:id/status", roleAuth("company"), async (req, res) => {
       `UPDATE internships SET
         status = $1,
         posted_date = CASE
-          WHEN $1 = 'Active' AND posted_date IS NULL THEN now()
+          WHEN $2 = 'Active' AND posted_date IS NULL THEN now()
           ELSE posted_date
         END,
         updated_at = now()
-       WHERE id = $2 AND company_id = $3
+       WHERE id = $3 AND company_id = $4
        RETURNING *`,
-      [status, req.params.id, req.userId]
+      // status is passed twice ($1 and $2), same reason as the POST
+      // route above - Postgres can't reuse one placeholder as both a
+      // plain enum column value and inside a text comparison.
+      [status, status, req.params.id, req.userId]
     );
 
     if (result.rows.length === 0) {
@@ -187,6 +199,7 @@ router.patch("/:id/status", roleAuth("company"), async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -204,6 +217,7 @@ router.delete("/:id", roleAuth("company"), async (req, res) => {
     }
     res.json({ deleted: result.rows[0] });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -225,6 +239,7 @@ router.get("/:id/skills", async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -248,6 +263,7 @@ router.post("/:id/skills", roleAuth("company"), async (req, res) => {
     );
     res.status(201).json({ internship_id: req.params.id, skill_id });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -270,6 +286,7 @@ router.delete("/:id/skills/:skillId", roleAuth("company"), async (req, res) => {
     );
     res.json({ message: "Removed" });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -318,6 +335,7 @@ router.get("/", async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -336,6 +354,7 @@ router.get("/:id", async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
