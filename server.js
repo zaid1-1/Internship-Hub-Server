@@ -16,6 +16,8 @@ import educationLevelsRoutes from "./routes/educationLevels.js";
 import companiesRoutes from "./routes/companies.js";
 import authRoutes from "./routes/auth.js";
 import adminRoutes from "./routes/admin.js";
+import quoteRoutes from "./routes/quotes.js";
+
 
 import studentsRoutes from "./routes/students.js";
 import projectsRoutes from "./routes/projects.js";
@@ -56,8 +58,8 @@ app.use("/api/certifications", certificationsRoutes);
 // app.use("/api/companies", companyRoutes);
 app.use("/api/internships", internshipsRoutes);
 app.use("/api/applications", applicationsRoutes);
-// app.use("/api/reports", reportRoutes);
-// app.use("/api/quotes", quoteRoutes);
+app.use("/api/quotes", quoteRoutes);
+app.use("/uploads", express.static("uploads"));
 app.use("/api/saved", savedRoutes);
 app.use("/api/admin", adminRoutes);
 

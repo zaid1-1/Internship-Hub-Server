@@ -2,6 +2,7 @@ import express from "express";
 import db from "../db.js";
 import roleAuth from "../middleware/roleAuth.js";
 import calculateMatch from "../utils/matching.js";
+import upload from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -284,6 +285,46 @@ router.get("/me/recommendations", roleAuth("student"), async (req, res) => {
     recommendations.sort((a, b) => b.match_score - a.match_score);
 
     res.json(recommendations);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
+// POST /api/students/me/cv -> multipart file upload, form field name
+// "cv". multer's upload.single("cv") writes the file to /uploads and
+// hands req.file to the handler, which just stores the path - same
+// UPDATE-one-column style as everything else in this project.
+router.post("/me/cv", roleAuth("student"), upload.single("cv"), async (req, res) => {
+  try {
+    const cv_url = `/uploads/${req.file.filename}`;
+    const result = await db.query(
+      "UPDATE student_profiles SET cv_url = $1, updated_at = now() WHERE user_id = $2 RETURNING *",
+      [cv_url, req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/students/me/photo -> same idea, field name "photo".
+router.post("/me/photo", roleAuth("student"), upload.single("photo"), async (req, res) => {
+  try {
+    const photo_url = `/uploads/${req.file.filename}`;
+    const result = await db.query(
+      "UPDATE student_profiles SET photo_url = $1, updated_at = now() WHERE user_id = $2 RETURNING *",
+      [photo_url, req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+    res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
