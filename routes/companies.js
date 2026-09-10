@@ -1,6 +1,7 @@
 import express from "express";
 import db from "../db.js";
 import roleAuth from "../middleware/roleAuth.js";
+import upload from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -74,6 +75,28 @@ router.put("/me", roleAuth("company"), async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+
+
+// POST /api/companies/me/logo -> multipart file upload, form field name
+// "logo". Same pattern as students.js's /me/cv and /me/photo.
+router.post("/me/logo", roleAuth("company"), upload.single("logo"), async (req, res) => {
+  try {
+    const logo_url = `/uploads/${req.file.filename}`;
+    const result = await db.query(
+      "UPDATE company_profiles SET logo_url = $1, updated_at = now() WHERE user_id = $2 RETURNING *",
+      [logo_url, req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
 // GET /api/companies/:id
 // Public company profile - anyone (including guests) can view it.
