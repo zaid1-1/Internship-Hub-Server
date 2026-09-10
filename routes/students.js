@@ -138,6 +138,7 @@ router.put("/me", roleAuth("student"), async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

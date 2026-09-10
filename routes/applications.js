@@ -157,6 +157,124 @@ router.get("/candidates", roleAuth("company"), async (req, res) => {
   }
 });
 
+// GET /api/applications/candidates/:id -> the FULL profile for ONE
+// candidate (one applications row), scoped to internships owned by the
+// logged-in company - same ownership check as GET /candidates above
+// (WHERE i.company_id = req.userId), just for a single row. This exists
+// because GET /candidates only returns the fields the Candidates LIST
+// view needs (spec section 22); the Candidate Profile screen (spec
+// section 24) needs the student's full profile - About, Education,
+// links, CV - plus their complete skill list and Projects/Experience/
+// Certifications, none of which the list route sends.
+// Columns are listed explicitly rather than "a.*, s.*" because
+// applications and student_profiles both have created_at/updated_at
+// columns, and s.location_id (the student's own location) would
+// otherwise collide with i.location_id (the internship's location) -
+// same explicit-column style GET /candidates above already uses.
+// Sub-resources (skills/projects/experience/certifications) are read
+// with the exact same queries subResourceRouter.js's own GET / route
+// uses, just scoped to the candidate's student_id instead of req.userId
+// - a company only ever VIEWS these, never writes them (spec section 23
+// - "Cannot edit a student's tracking status" extends to not touching
+// their profile data at all).
+router.get("/candidates/:id", roleAuth("company"), async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT a.id, a.student_id, a.internship_id, a.status, a.clicked_date,
+              a.follow_up_date, a.notes,
+              s.first_name, s.last_name, s.phone, s.photo_url,
+              s.location_id, s.headline, s.about, s.university,
+              s.degree_level_id, s.study_field_id, s.academic_year,
+              s.expected_graduation_year, s.gpa, s.cv_url, s.github_url,
+              s.linkedin_url, s.portfolio_url, s.personal_website_url,
+              s.preferred_location_id, s.preferred_internship_type_id,
+              i.title AS internship_title, i.field_id,
+              i.location_id AS internship_location_id,
+              i.internship_type_id, i.required_study_field_id, i.company_id
+       FROM applications a
+       JOIN internships i ON i.id = a.internship_id
+       JOIN student_profiles s ON s.user_id = a.student_id
+       WHERE a.id = $1 AND i.company_id = $2`,
+      [req.params.id, req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Not found" });
+    }
+    const candidate = result.rows[0];
+
+    const skills = await db.query(
+      `SELECT s.id, s.name
+       FROM student_skills ss
+       JOIN skills s ON s.id = ss.skill_id
+       WHERE ss.student_id = $1`,
+      [candidate.student_id]
+    );
+
+    const requiredSkills = await db.query(
+      `SELECT s.id, s.name
+       FROM internship_skills isk
+       JOIN skills s ON s.id = isk.skill_id
+       WHERE isk.internship_id = $1`,
+      [candidate.internship_id]
+    );
+
+    const interestRows = await db.query(
+      "SELECT field_id FROM student_interests WHERE student_id = $1",
+      [candidate.student_id]
+    );
+    const interestFieldIds = [];
+    for (let i = 0; i < interestRows.rows.length; i++) {
+      interestFieldIds.push(interestRows.rows[i].field_id);
+    }
+
+    const match = calculateMatch(
+      {
+        skillIds: skills.rows,
+        interestFieldIds,
+        preferred_location_id: candidate.preferred_location_id,
+        preferred_internship_type_id: candidate.preferred_internship_type_id,
+        study_field_id: candidate.study_field_id,
+      },
+      {
+        requiredSkills: requiredSkills.rows,
+        field_id: candidate.field_id,
+        location_id: candidate.internship_location_id,
+        internship_type_id: candidate.internship_type_id,
+        required_study_field_id: candidate.required_study_field_id,
+      }
+    );
+
+    const projects = await db.query(
+      "SELECT * FROM projects WHERE student_id = $1 ORDER BY id",
+      [candidate.student_id]
+    );
+    const experience = await db.query(
+      "SELECT * FROM experience WHERE student_id = $1 ORDER BY id",
+      [candidate.student_id]
+    );
+    const certifications = await db.query(
+      "SELECT * FROM certifications WHERE student_id = $1 ORDER BY id",
+      [candidate.student_id]
+    );
+
+    res.json({
+      ...candidate,
+      skills: skills.rows,
+      match_score: match.score,
+      match_breakdown: match.breakdown,
+      matchingSkills: match.matchingSkills,
+      missingSkills: match.missingSkills,
+      projects: projects.rows,
+      experience: experience.rows,
+      certifications: certifications.rows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // PUT /api/applications/:id -> a student can update their own
 // status/follow_up_date/notes; a company can update the status of an
 // application to one of ITS OWN internships. Since two different roles

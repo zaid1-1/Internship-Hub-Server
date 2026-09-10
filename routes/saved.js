@@ -86,9 +86,21 @@ router.get("/", roleAuth("student"), async (req, res) => {
   }
 });
 
+// Same duplicate-check style as applications.js's POST / - check first,
+// friendly response if it's already saved, instead of letting a second
+// insert throw a raw 500 (the frontend can end up calling this twice for
+// the same internship if its local "saved" state hasn't loaded yet).
 router.post("/", roleAuth("student"), async (req, res) => {
   const { internship_id } = req.body;
   try {
+    const exists = await db.query(
+      "SELECT * FROM saved_internships WHERE student_id = $1 AND internship_id = $2",
+      [req.userId, internship_id]
+    );
+    if (exists.rows.length > 0) {
+      return res.status(200).json({ student_id: req.userId, internship_id, message: "Already saved" });
+    }
+
     await db.query(
       "INSERT INTO saved_internships (student_id, internship_id) VALUES ($1, $2)",
       [req.userId, internship_id]
