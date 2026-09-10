@@ -245,8 +245,6 @@ router.get("/me/recommendations", roleAuth("student"), async (req, res) => {
        JOIN skills s ON s.id = isk.skill_id`
     );
 
-    // Group the required-skills rows by internship_id in plain JS - one
-    // query instead of one SELECT per internship in the loop below.
     const skillsByInternship = {};
     for (let i = 0; i < allRequiredSkills.rows.length; i++) {
       const row = allRequiredSkills.rows[i];
@@ -279,6 +277,8 @@ router.get("/me/recommendations", roleAuth("student"), async (req, res) => {
 
       internship.match_score = match.score;
       internship.match_breakdown = match.breakdown;
+      internship.matchingSkills = match.matchingSkills;
+      internship.missingSkills = match.missingSkills;
       recommendations.push(internship);
     }
 

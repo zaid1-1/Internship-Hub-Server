@@ -302,36 +302,23 @@ router.delete("/:id/skills/:skillId", roleAuth("company"), async (req, res) => {
 // an array of conditions/values assembled with plain JS, still plugged
 // into the query as parameterized placeholders.
 router.get("/", async (req, res) => {
-  const { field_id, location_id, work_arrangement_id, internship_type_id, keyword } =
-    req.query;
-
-  const conditions = ["status = 'Active'"];
+  const { field_id, location_id, work_arrangement_id, internship_type_id, keyword } = req.query;
+  const conditions = ["i.status = 'Active'"];
   const values = [];
 
-  if (field_id) {
-    values.push(field_id);
-    conditions.push(`field_id = $${values.length}`);
-  }
-  if (location_id) {
-    values.push(location_id);
-    conditions.push(`location_id = $${values.length}`);
-  }
-  if (work_arrangement_id) {
-    values.push(work_arrangement_id);
-    conditions.push(`work_arrangement_id = $${values.length}`);
-  }
-  if (internship_type_id) {
-    values.push(internship_type_id);
-    conditions.push(`internship_type_id = $${values.length}`);
-  }
-  if (keyword) {
-    values.push(`%${keyword}%`);
-    conditions.push(`title ILIKE $${values.length}`);
-  }
+  if (field_id) { values.push(field_id); conditions.push(`i.field_id = $${values.length}`); }
+  if (location_id) { values.push(location_id); conditions.push(`i.location_id = $${values.length}`); }
+  if (work_arrangement_id) { values.push(work_arrangement_id); conditions.push(`i.work_arrangement_id = $${values.length}`); }
+  if (internship_type_id) { values.push(internship_type_id); conditions.push(`i.internship_type_id = $${values.length}`); }
+  if (keyword) { values.push(`%${keyword}%`); conditions.push(`i.title ILIKE $${values.length}`); }
 
   try {
     const result = await db.query(
-      `SELECT * FROM internships WHERE ${conditions.join(" AND ")} ORDER BY posted_date DESC`,
+      `SELECT i.*, c.company_name
+       FROM internships i
+       JOIN company_profiles c ON c.user_id = i.company_id
+       WHERE ${conditions.join(" AND ")}
+       ORDER BY i.posted_date DESC`,
       values
     );
     res.json(result.rows);
