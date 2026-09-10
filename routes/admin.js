@@ -58,12 +58,17 @@ router.get("/students", roleAuth("admin"), async (req, res) => {
 });
 
 // GET /api/admin/companies -> the Companies tab of Admin User Management
-// (spec section 48).
+// (spec section 48). Also used by the separate Admin Company Management
+// screen (spec section 50, AdminCompanies), which additionally shows
+// location - added c.location_id here (same raw-FK convention as every
+// other lookup-id column returned elsewhere; the frontend resolves the
+// name via the already-built GET /api/locations, same as it does
+// everywhere else).
 router.get("/companies", roleAuth("admin"), async (req, res) => {
   try {
     const result = await db.query(
       `SELECT u.id, u.email, u.status, u.created_at,
-              c.company_name, c.industry
+              c.company_name, c.industry, c.location_id
        FROM users u
        JOIN company_profiles c ON c.user_id = u.id
        WHERE u.role = 'company'
